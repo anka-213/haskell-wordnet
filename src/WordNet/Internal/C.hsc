@@ -25,10 +25,12 @@ newtype SearchOpts = SearchOpts CInt
 -- foreign import ccall "findtheinfo"     findtheinfo_ :: CString -> CInt -> CInt -> CInt -> IO SynsetPtr
 foreign import ccall "findtheinfo_ds"     findtheinfo_ds :: CString -> POS -> SearchOpts -> CInt -> IO SynsetPtr
 foreign import ccall "free_syns"          free_syns :: SynsetPtr -> IO ()
-foreign import ccall "read_synset"        read_synset :: CInt -> CLong -> CString -> IO SynsetPtr
+foreign import ccall "read_synset"        read_synset :: CInt -> PtrOffset -> CString -> IO SynsetPtr
 
 type PtrType = DB.Search
 -- type PtrType = CInt
+
+newtype CEnum a = CEnum CInt
 
 type SynsetPtr = Ptr Synset
 
@@ -110,7 +112,7 @@ relatedToIO synset = do
     return (lpos,innerSynset)
 
 readSynset :: DB.POS -> PtrOffset -> IO [Synset]
-readSynset pos (PtrOffset off) = do
+readSynset pos off = do
   DB.ensureInit
   ptr <- read_synset (toCInt pos) off =<< newCString ""
   synset <- peekSynsetList ptr
