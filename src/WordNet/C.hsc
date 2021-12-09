@@ -1,6 +1,8 @@
 {-# language CPP #-}
 {-# language TypeApplications #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 #include "wn.h"
 
 module WordNet.C where
@@ -28,6 +30,11 @@ type PtrType = DB.Search
 -- type PtrType = CInt
 
 type SynsetPtr = Ptr Synset
+
+-- | A relative offset to a synset in a database.
+newtype PtrOffset = PtrOffset CLong
+  deriving newtype (Show, Storable)
+
 data Synset = Synset
   { pos :: String
   , ptrcount :: Int
@@ -38,7 +45,7 @@ data Synset = Synset
 --   , nextform :: [Synset]
 --   Indexed by ptrcount
   , ppos :: [DB.POS] -- Pointer to int symbolizing the part of speech (as index to the array { "", "noun", "verb", "adj", "adv", NULL }; )
-  , ptroff :: [CLong] -- Pointer offset
+  , ptroff :: [PtrOffset] -- Pointer offset
   , ptrtyp :: [PtrType]
   , pfrm :: [Int] -- 'from' fields
   , links :: [SynsetLink]
@@ -64,10 +71,10 @@ instance Storable Synset where
     defn <- peekCString =<< (#peek Synset, defn) ptr
     whichword <- fromCInt <$> (#peek Synset, whichword) ptr
     -- nextform <- peekSynsetList =<< (#peek Synset, nextform) ptr
-    ppos <- (fmap . fmap) (toEnum . fromCInt) $ peekArray ptrcount =<< (#peek Synset, ppos) ptr
+    ppos <- (fmap . fmap) (toEnum . fromCInt) . peekArray ptrcount =<< (#peek Synset, ppos) ptr
     ptroff <- peekArray ptrcount =<< (#peek Synset, ptroff) ptr
-    pfrm <- (fmap . fmap) fromCInt $ peekArray ptrcount =<< (#peek Synset, pfrm) ptr
-    pto <- (fmap . fmap) fromCInt $ peekArray ptrcount =<< (#peek Synset, pto) ptr
+    pfrm <- (fmap . fmap) fromCInt . peekArray ptrcount =<< (#peek Synset, pfrm) ptr
+    pto <- (fmap . fmap) fromCInt . peekArray ptrcount =<< (#peek Synset, pto) ptr
     ptrtyp <- (fmap . fmap) (toEnum . fromCInt) $ peekArray ptrcount =<< (#peek Synset, ptrtyp) ptr
     let links = zipWith5 SynsetLink ppos ptroff ptrtyp pfrm pto
     return $ Synset
@@ -88,7 +95,7 @@ instance Storable Synset where
 
 data SynsetLink = SynsetLink
   { lpos :: DB.POS -- ^ Part of speech for target
-  , loff :: CLong -- ^ Offset in DB
+  , loff :: PtrOffset -- ^ Offset in DB
   , ltyp :: PtrType -- ^ Type of link
   , lfrm :: Int -- ^ 'from' fields
   , lto  :: Int -- ^ 'to' fields
@@ -101,26 +108,26 @@ derivationLinks Synset{links, whichword} = filter (\SynsetLink{ltyp, lfrm} -> lt
 relatedTo :: Synset -> [(DB.POS,SynsetDBPos)]
 relatedTo synset = concat $ zipWith4 relatedPtr (ptrtyp synset) (ptroff synset) (ppos synset) (pfrm synset)
   where
-    relatedPtr :: PtrType -> CLong -> DB.POS -> Int -> [(DB.POS,SynsetDBPos)]
+    relatedPtr :: PtrType -> PtrOffset -> DB.POS -> Int -> [(DB.POS,SynsetDBPos)]
     relatedPtr ptrtyp ptroff pos frm 
       | ptrtyp == DB.DERIVATION, frm == whichword synset = [(pos, SynsetDBPos pos ptroff)]
       | otherwise = []
 
 data SynsetDBPos = SynsetDBPos
   { dbPos :: DB.POS
-  , dbOff :: CLong
+  , dbOff :: PtrOffset
   }
   deriving (Show)
 
 relatedToIO :: Synset -> IO [(DB.POS,[Synset])]
 relatedToIO synset = do
   let related = relatedTo synset
-  forM related $ \(pos,dbPos) -> do
-    innerSynset <- readSynset dbPos
+  forM related $ \(pos, SynsetDBPos {dbPos, dbOff}) -> do
+    innerSynset <- readSynset dbPos dbOff
     return (pos,innerSynset)
 
-readSynset :: SynsetDBPos -> IO [Synset]
-readSynset (SynsetDBPos pos off) = do
+readSynset :: DB.POS -> PtrOffset -> IO [Synset]
+readSynset pos (PtrOffset off) = do
   ptr <- read_synset (fromIntegral $ fromEnum pos) off =<< newCString ""
   synset <- peekSynsetList ptr
   free_syns ptr
