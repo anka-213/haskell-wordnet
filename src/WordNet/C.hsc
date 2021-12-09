@@ -3,6 +3,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DerivingVia #-}
 #include "wn.h"
 
 module WordNet.C where
@@ -10,7 +11,7 @@ module WordNet.C where
 import Control.Monad (forM)
 import Foreign.C.Types
 import Foreign.C.String (CString, newCString, peekCString)
-import Foreign.Ptr (nullPtr, Ptr, plusPtr, castPtr)
+import Foreign.Ptr (nullPtr, Ptr, castPtr)
 import Foreign.Storable (Storable(..))
 import Foreign.Marshal.Array
 -- import Data.Text (Text, pack, unpack)
@@ -61,7 +62,6 @@ instance Storable Synset where
   alignment _ = #alignment Synset
   peek ptr = do
     pos <- peekCString =<< (#peek Synset, pos) ptr
-    ptrcount <- fromCInt <$> (#peek Synset, ptrcount) ptr
     wcount <- fromCInt <$> (#peek Synset, wcount) ptr
     sWords <- mapM peekCString =<< peekArray wcount =<< (#peek Synset, words) ptr
     -- sWords <- peekArray wcount =<< (#peek Synset, words) ptr
@@ -69,6 +69,9 @@ instance Storable Synset where
     defn <- peekCString =<< (#peek Synset, defn) ptr
     whichword <- fromCInt <$> (#peek Synset, whichword) ptr
     -- nextform <- peekSynsetList =<< (#peek Synset, nextform) ptr
+
+    -- Pointers/Links
+    ptrcount <- fromCInt <$> (#peek Synset, ptrcount) ptr
     ppos <- peekEnumArray ptrcount =<< (#peek Synset, ppos) ptr
     ptroff <- peekArray ptrcount =<< (#peek Synset, ptroff) ptr
     pfrm <- peekEnumArray ptrcount =<< (#peek Synset, pfrm) ptr
@@ -108,6 +111,7 @@ relatedToIO synset = do
 
 readSynset :: DB.POS -> PtrOffset -> IO [Synset]
 readSynset pos (PtrOffset off) = do
+  DB.ensureInit
   ptr <- read_synset (toCInt pos) off =<< newCString ""
   synset <- peekSynsetList ptr
   free_syns ptr
@@ -123,31 +127,18 @@ peekSynsetList ptr = do
   return $ this : rest
 
 
--- ForeignPtr ... free_syns
-
-foo :: Ptr Synset -> Ptr CString
-foo = #ptr Synset, pos
-
 findTheInfo :: String -> DB.POS -> SearchOpts -> IO [Synset]
 findTheInfo s p opts = do
   DB.ensureInit
   cstr <- newCString s
   ptr <- findtheinfo_ds cstr (POS $ toCInt p) opts 0 -- Always return all senses
-  peekSynsetList ptr
---   peekSynsetList ptr <* free_syns ptr
---   if ptr == nullPtr
---     then error "findTheInfo: an error occurred"
---     else peek ptr
+  -- peekSynsetList ptr
+  peekSynsetList ptr <* free_syns ptr
 
 
 data Foo = Foo | Bar
  deriving (Show, Enum)
-
-instance Storable Foo where
-  sizeOf _ = sizeOf (0 :: CInt)
-  alignment _ = alignment (0 :: CInt)
-  peek x = fromCInt <$> peek @CInt (castPtr x)
-  poke ptr x = poke @CInt (castPtr ptr) (toCInt x)
+ deriving Storable via (EnumCInt Foo)
 
 newtype EnumCInt a = EnumCInt a
   deriving newtype (Enum)
@@ -155,8 +146,8 @@ newtype EnumCInt a = EnumCInt a
 instance Enum a => Storable (EnumCInt a) where
   sizeOf _ = sizeOf (0 :: CInt)
   alignment _ = alignment (0 :: CInt)
-  peek x = toEnum . fromIntegral <$> peek @CInt (castPtr x)
-  poke ptr x = poke @CInt (castPtr ptr) (fromIntegral $ fromEnum x)
+  peek x = fromCInt <$> peek @CInt (castPtr x)
+  poke ptr x = poke @CInt (castPtr ptr) (toCInt x)
 
 #{enum SearchOpts, SearchOpts
   , derivation             = DERIVATION
@@ -172,6 +163,3 @@ newtype POS = POS CInt
  ,adj = ADJ
  ,adv = ADV
 }
-
-
--- {#enum Abc_VerbLevel {underscoreToCase} deriving (Show, Eq) #}
