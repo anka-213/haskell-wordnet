@@ -15,7 +15,7 @@ import Foreign.Marshal.Array
 -- import Control.Exception (Exception, throw)
 -- import Data.Dynamic (Typeable)
 import qualified WordNet.DB as DB
-import Data.List (zipWith4)
+import Data.List (zipWith4, zipWith5)
 
 newtype SearchOpts = SearchOpts CInt
 
@@ -41,11 +41,15 @@ data Synset = Synset
   , ptroff :: [CLong] -- Pointer offset
   , ptrtyp :: [PtrType]
   , pfrm :: [Int] -- 'from' fields
+  , links :: [SynsetLink]
   }
   deriving (Show)
 
 fromCInt :: CInt -> Int
 fromCInt = fromIntegral
+
+peekEnumArray :: (Enum a) => Int -> Ptr CInt -> IO [a]
+peekEnumArray n = (fmap . fmap) (toEnum . fromCInt) . peekArray n
 
 instance Storable Synset where
   sizeOf _ = #size Synset
@@ -63,7 +67,9 @@ instance Storable Synset where
     ppos <- (fmap . fmap) (toEnum . fromCInt) $ peekArray ptrcount =<< (#peek Synset, ppos) ptr
     ptroff <- peekArray ptrcount =<< (#peek Synset, ptroff) ptr
     pfrm <- (fmap . fmap) fromCInt $ peekArray ptrcount =<< (#peek Synset, pfrm) ptr
+    pto <- (fmap . fmap) fromCInt $ peekArray ptrcount =<< (#peek Synset, pto) ptr
     ptrtyp <- (fmap . fmap) (toEnum . fromCInt) $ peekArray ptrcount =<< (#peek Synset, ptrtyp) ptr
+    let links = zipWith5 SynsetLink ppos ptroff ptrtyp pfrm pto
     return $ Synset
         { pos
         , ptrcount
@@ -75,10 +81,22 @@ instance Storable Synset where
         , ptroff
         , ptrtyp
         , pfrm
+        , links
         -- , nextform
         }
   poke _ _ = error "Synset: poke not implemented"
 
+data SynsetLink = SynsetLink
+  { lpos :: DB.POS -- ^ Part of speech for target
+  , loff :: CLong -- ^ Offset in DB
+  , ltyp :: PtrType -- ^ Type of link
+  , lfrm :: Int -- ^ 'from' fields
+  , lto  :: Int -- ^ 'to' fields
+  }
+  deriving (Show)
+
+derivationLinks :: Synset -> [SynsetLink]
+derivationLinks Synset{links, whichword} = filter (\SynsetLink{ltyp, lfrm} -> ltyp == DB.DERIVATION && lfrm == whichword) links
 
 relatedTo :: Synset -> [(DB.POS,SynsetDBPos)]
 relatedTo synset = concat $ zipWith4 relatedPtr (ptrtyp synset) (ptroff synset) (ppos synset) (pfrm synset)
