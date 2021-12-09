@@ -17,7 +17,7 @@ import Foreign.Marshal.Array
 -- import Control.Exception (Exception, throw)
 -- import Data.Dynamic (Typeable)
 import qualified WordNet.DB as DB
-import Data.List (zipWith4, zipWith5)
+import Data.List (zipWith5)
 
 newtype SearchOpts = SearchOpts CInt
 
@@ -37,17 +37,12 @@ newtype PtrOffset = PtrOffset CLong
 
 data Synset = Synset
   { pos :: String
-  , ptrcount :: Int
   , sWords :: [String]
 --   , wcount :: Int
   , defn :: String
   , whichword :: Int
 --   , nextform :: [Synset]
---   Indexed by ptrcount
-  , ppos :: [DB.POS] -- Pointer to int symbolizing the part of speech (as index to the array { "", "noun", "verb", "adj", "adv", NULL }; )
-  , ptroff :: [PtrOffset] -- Pointer offset
-  , ptrtyp :: [PtrType]
-  , pfrm :: [Int] -- 'from' fields
+  , ptrcount :: Int
   , links :: [SynsetLink]
   }
   deriving (Show)
@@ -76,55 +71,37 @@ instance Storable Synset where
     pfrm <- (fmap . fmap) fromCInt . peekArray ptrcount =<< (#peek Synset, pfrm) ptr
     pto <- (fmap . fmap) fromCInt . peekArray ptrcount =<< (#peek Synset, pto) ptr
     ptrtyp <- (fmap . fmap) (toEnum . fromCInt) $ peekArray ptrcount =<< (#peek Synset, ptrtyp) ptr
-    let links = zipWith5 SynsetLink ppos ptroff ptrtyp pfrm pto
+    let links = zipWith5 SynsetLink ptrtyp ptroff ppos pto pfrm
     return $ Synset
         { pos
-        , ptrcount
         -- , wcount
         , sWords
         , defn
         , whichword
-        , ppos
-        , ptroff
-        , ptrtyp
-        , pfrm
+        , ptrcount
         , links
         -- , nextform
         }
   poke _ _ = error "Synset: poke not implemented"
 
 data SynsetLink = SynsetLink
-  { lpos :: DB.POS -- ^ Part of speech for target
+  { ltyp :: PtrType -- ^ Type of link
   , loff :: PtrOffset -- ^ Offset in DB
-  , ltyp :: PtrType -- ^ Type of link
-  , lfrm :: Int -- ^ 'from' fields
+  , lpos :: DB.POS -- ^ Part of speech for target
   , lto  :: Int -- ^ 'to' fields
+  , lfrm :: Int -- ^ 'from' fields
   }
   deriving (Show)
 
 derivationLinks :: Synset -> [SynsetLink]
 derivationLinks Synset{links, whichword} = filter (\SynsetLink{ltyp, lfrm} -> ltyp == DB.DERIVATION && lfrm == whichword) links
 
-relatedTo :: Synset -> [(DB.POS,SynsetDBPos)]
-relatedTo synset = concat $ zipWith4 relatedPtr (ptrtyp synset) (ptroff synset) (ppos synset) (pfrm synset)
-  where
-    relatedPtr :: PtrType -> PtrOffset -> DB.POS -> Int -> [(DB.POS,SynsetDBPos)]
-    relatedPtr ptrtyp ptroff pos frm 
-      | ptrtyp == DB.DERIVATION, frm == whichword synset = [(pos, SynsetDBPos pos ptroff)]
-      | otherwise = []
-
-data SynsetDBPos = SynsetDBPos
-  { dbPos :: DB.POS
-  , dbOff :: PtrOffset
-  }
-  deriving (Show)
-
 relatedToIO :: Synset -> IO [(DB.POS,[Synset])]
 relatedToIO synset = do
-  let related = relatedTo synset
-  forM related $ \(pos, SynsetDBPos {dbPos, dbOff}) -> do
-    innerSynset <- readSynset dbPos dbOff
-    return (pos,innerSynset)
+  let related = derivationLinks synset
+  forM related $ \(SynsetLink {lpos, loff}) -> do
+    innerSynset <- readSynset lpos loff
+    return (lpos,innerSynset)
 
 readSynset :: DB.POS -> PtrOffset -> IO [Synset]
 readSynset pos (PtrOffset off) = do
@@ -164,8 +141,17 @@ data Foo = Foo | Bar
  deriving (Show, Enum)
 
 instance Storable Foo where
-  sizeOf _ = 1
-  alignment _ = 1
+  sizeOf _ = sizeOf (0 :: CInt)
+  alignment _ = alignment (0 :: CInt)
+  peek x = toEnum . fromIntegral <$> peek @CInt (castPtr x)
+  poke ptr x = poke @CInt (castPtr ptr) (fromIntegral $ fromEnum x)
+
+newtype EnumCInt a = EnumCInt a
+  deriving newtype (Enum)
+
+instance Enum a => Storable (EnumCInt a) where
+  sizeOf _ = sizeOf (0 :: CInt)
+  alignment _ = alignment (0 :: CInt)
   peek x = toEnum . fromIntegral <$> peek @CInt (castPtr x)
   poke ptr x = poke @CInt (castPtr ptr) (fromIntegral $ fromEnum x)
 
