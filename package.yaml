@@ -36,6 +36,9 @@ library:
     - lib/wnrtl.c
     - lib/wnutil.c
     - lib/haskell_wrappers.c
+  include-dirs:
+    - lib
+  # includes: wn.h
 
 data-dir: data
 data-files:
@@ -43,7 +46,7 @@ data-files:
 
 ghc-options:
 - -Wall
-- -Werror
+# - -Werror
 - -Wno-orphans
 
 tests:

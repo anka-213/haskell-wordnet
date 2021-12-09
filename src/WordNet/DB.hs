@@ -33,6 +33,7 @@ ensureInit = do
 
 data POS = Any | Noun | Verb | Adj | Adv deriving (Show, Enum)
 
+
 data Search =
  UNKNOWN_SEARCH
  | ANTPTR          -- 1    /* ! */
