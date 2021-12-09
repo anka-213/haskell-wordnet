@@ -23,14 +23,21 @@ import Data.List (zipWith5)
 newtype SearchOpts = SearchOpts CInt
 
 -- foreign import ccall "findtheinfo"     findtheinfo_ :: CString -> CInt -> CInt -> CInt -> IO SynsetPtr
-foreign import ccall "findtheinfo_ds"     findtheinfo_ds :: CString -> POS -> SearchOpts -> CInt -> IO SynsetPtr
+foreign import ccall "findtheinfo_ds"     findtheinfo_ds :: CString -> CEnum DB.POS -> CEnum DB.Search -> CInt -> IO SynsetPtr
 foreign import ccall "free_syns"          free_syns :: SynsetPtr -> IO ()
-foreign import ccall "read_synset"        read_synset :: CInt -> PtrOffset -> CString -> IO SynsetPtr
+foreign import ccall "read_synset"        read_synset :: CEnum DB.POS -> PtrOffset -> CString -> IO SynsetPtr
 
 type PtrType = DB.Search
 -- type PtrType = CInt
 
+-- | An enum represented as a C int
 newtype CEnum a = CEnum CInt
+
+cenum :: (Enum a) => a -> CEnum a
+cenum = CEnum . fromIntegral . fromEnum
+
+uncenum :: (Enum a) => CEnum a -> a
+uncenum (CEnum i) = toEnum $ fromIntegral i
 
 type SynsetPtr = Ptr Synset
 
@@ -114,7 +121,7 @@ relatedToIO synset = do
 readSynset :: DB.POS -> PtrOffset -> IO [Synset]
 readSynset pos off = do
   DB.ensureInit
-  ptr <- read_synset (toCInt pos) off =<< newCString ""
+  ptr <- read_synset (cenum pos) off =<< newCString ""
   synset <- peekSynsetList ptr
   free_syns ptr
   return synset
@@ -129,11 +136,11 @@ peekSynsetList ptr = do
   return $ this : rest
 
 
-findTheInfo :: String -> DB.POS -> SearchOpts -> IO [Synset]
+findTheInfo :: String -> DB.POS -> DB.Search -> IO [Synset]
 findTheInfo s p opts = do
   DB.ensureInit
   cstr <- newCString s
-  ptr <- findtheinfo_ds cstr (POS $ toCInt p) opts 0 -- Always return all senses
+  ptr <- findtheinfo_ds cstr (cenum p) (cenum opts) 0 -- Always return all senses
   -- peekSynsetList ptr
   peekSynsetList ptr <* free_syns ptr
 
