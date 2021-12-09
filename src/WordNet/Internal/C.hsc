@@ -49,6 +49,7 @@ newtype PtrOffset = PtrOffset CLong
 data Synset = Synset
   { pos :: String
   , sWords :: [String]
+  , wnsns :: [Int]
 --   , wcount :: Int
   , defn :: String
   , whichword :: Int
@@ -68,6 +69,7 @@ instance Storable Synset where
     pos <- peekCString =<< (#peek Synset, pos) ptr
     wcount <- fromCInt <$> (#peek Synset, wcount) ptr
     sWords <- mapM peekCString =<< peekArray wcount =<< (#peek Synset, words) ptr
+    wnsns <- peekEnumArray wcount =<< (#peek Synset, wnsns) ptr
     -- sWords <- peekArray wcount =<< (#peek Synset, words) ptr
     -- sWords <- (#peek Synset, words) ptr
     defn <- peekCString =<< (#peek Synset, defn) ptr
@@ -86,6 +88,7 @@ instance Storable Synset where
         { pos
         -- , wcount
         , sWords
+        , wnsns
         , defn
         , whichword
         , ptrcount
