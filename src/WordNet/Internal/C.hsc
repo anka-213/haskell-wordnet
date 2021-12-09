@@ -9,8 +9,9 @@
 module WordNet.Internal.C where
 -- import Data.List.NonEmpty (NonEmpty(..))
 import Control.Monad (forM)
+import Control.Exception (bracket)
 import Foreign.C.Types
-import Foreign.C.String (CString, newCString, peekCString)
+import Foreign.C.String (CString, newCString, peekCString, withCString)
 import Foreign.Ptr (nullPtr, Ptr, castPtr)
 import Foreign.Storable (Storable(..))
 import Foreign.Marshal.Array
@@ -121,11 +122,11 @@ relatedToIO synset = do
 readSynset :: DB.POS -> PtrOffset -> IO [Synset]
 readSynset pos off = do
   DB.ensureInit
-  ptr <- read_synset (cenum pos) off =<< newCString ""
-  synset <- peekSynsetList ptr
-  free_syns ptr
-  return synset
+  parseSynset $ withCString "" (read_synset (cenum pos) off)
 
+-- | Parse and deallocate a synset pointer
+parseSynset :: IO SynsetPtr -> IO [Synset]
+parseSynset mkPtr = bracket mkPtr free_syns peekSynsetList 
 
 peekSynsetList :: Ptr Synset -> IO [Synset]
 peekSynsetList ptr | ptr == nullPtr = return []
@@ -138,11 +139,9 @@ peekSynsetList ptr = do
 
 findTheInfo :: String -> DB.POS -> DB.Search -> IO [Synset]
 findTheInfo s p opts = do
+  let sense = (#const ALLSENSES)  -- Always return all senses
   DB.ensureInit
-  cstr <- newCString s
-  ptr <- findtheinfo_ds cstr (cenum p) (cenum opts) 0 -- Always return all senses
-  -- peekSynsetList ptr
-  peekSynsetList ptr <* free_syns ptr
+  parseSynset $ withCString s $ \ cstr -> findtheinfo_ds cstr (cenum p) (cenum opts) sense
 
 
 data Foo = Foo | Bar
