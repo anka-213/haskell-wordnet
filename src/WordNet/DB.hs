@@ -1,13 +1,18 @@
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module WordNet.DB where
 
 import Data.List.NonEmpty (NonEmpty(..))
 import Foreign.C.Types (CBool(..), CInt(..))
 import Foreign.C.String (CString, newCString, peekCString)
-import Foreign.Ptr (nullPtr)
+import Foreign.Ptr (nullPtr, castPtr)
 import Data.Text (Text, pack, unpack)
 import Control.Exception (Exception, throw)
 import Data.Dynamic (Typeable)
 import Paths_wordnet (getDataFileName)
+import Foreign.Storable (Storable(..))
 
 foreign import ccall "wn_init_wordnet" init_wordnet :: CString -> IO CBool
 foreign import ccall "morphstr"        morphstr     :: CString -> CInt -> IO CString
@@ -32,7 +37,7 @@ ensureInit = do
         pure ()
 
 data POS = Any | Noun | Verb | Adj | Adv deriving (Show, Enum)
-
+ deriving Storable via (EnumCInt POS)
 
 data Search =
  UNKNOWN_SEARCH
@@ -62,6 +67,17 @@ data Search =
  | CLASSIFICATION  -- 21    /* ; */
  | CLASS           -- 22    /* - */
   deriving (Show, Eq, Enum)
+ deriving Storable via (EnumCInt Search)
+
+
+newtype EnumCInt a = EnumCInt a
+  deriving newtype (Enum)
+
+instance Enum a => Storable (EnumCInt a) where
+  sizeOf _ = sizeOf (0 :: CInt)
+  alignment _ = alignment (0 :: CInt)
+  peek x = fromCInt <$> peek @CInt (castPtr x)
+  poke ptr x = poke @CInt (castPtr ptr) (toCInt x)
 
 
 morph1 :: Text -> POS -> IO (NonEmpty Text)
@@ -107,3 +123,10 @@ data WordNetException
     deriving (Show, Typeable)
 
 instance Exception WordNetException
+
+
+fromCInt :: Enum a => CInt -> a
+fromCInt = toEnum . fromIntegral
+
+toCInt :: Enum a => a -> CInt
+toCInt = fromIntegral . fromEnum

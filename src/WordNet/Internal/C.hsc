@@ -11,14 +11,14 @@ module WordNet.Internal.C where
 import Control.Monad (forM)
 import Control.Exception (bracket)
 import Foreign.C.Types
-import Foreign.C.String (CString, newCString, peekCString, withCString)
-import Foreign.Ptr (nullPtr, Ptr, castPtr)
+import Foreign.C.String (CString, peekCString, withCString)
+import Foreign.Ptr (nullPtr, Ptr)
 import Foreign.Storable (Storable(..))
 import Foreign.Marshal.Array
 -- import Data.Text (Text, pack, unpack)
 -- import Control.Exception (Exception, throw)
 -- import Data.Dynamic (Typeable)
-import qualified WordNet.DB as DB
+import WordNet.DB as DB
 import Data.List (zipWith5)
 
 newtype SearchOpts = SearchOpts CInt
@@ -34,11 +34,11 @@ type PtrType = DB.Search
 -- | An enum represented as a C int
 newtype CEnum a = CEnum CInt
 
-cenum :: (Enum a) => a -> CEnum a
-cenum = CEnum . fromIntegral . fromEnum
+cEnum :: (Enum a) => a -> CEnum a
+cEnum = CEnum . fromIntegral . fromEnum
 
-uncenum :: (Enum a) => CEnum a -> a
-uncenum (CEnum i) = toEnum $ fromIntegral i
+unCEnum :: (Enum a) => CEnum a -> a
+unCEnum (CEnum i) = toEnum $ fromIntegral i
 
 type SynsetPtr = Ptr Synset
 
@@ -57,12 +57,6 @@ data Synset = Synset
   , links :: [SynsetLink]
   }
   deriving (Show)
-
-fromCInt :: Enum a => CInt -> a
-fromCInt = toEnum . fromIntegral
-
-toCInt :: Enum a => a -> CInt
-toCInt = fromIntegral . fromEnum
 
 peekEnumArray :: (Enum a) => Int -> Ptr CInt -> IO [a]
 peekEnumArray n = (fmap . fmap) fromCInt . peekArray n
@@ -103,7 +97,7 @@ instance Storable Synset where
 data SynsetLink = SynsetLink
   { ltyp :: PtrType -- ^ Type of link
   , loff :: PtrOffset -- ^ Offset in DB
-  , lpos :: DB.POS -- ^ Part of speech for target
+  , lpos :: POS -- ^ Part of speech for target
   , lto  :: Int -- ^ 'to' fields
   , lfrm :: Int -- ^ 'from' fields
   }
@@ -112,7 +106,7 @@ data SynsetLink = SynsetLink
 derivationLinks :: Synset -> [SynsetLink]
 derivationLinks Synset{links, whichword} = filter (\SynsetLink{ltyp, lfrm} -> ltyp == DB.DERIVATION && lfrm == whichword) links
 
-relatedToIO :: Synset -> IO [(DB.POS,[Synset])]
+relatedToIO :: Synset -> IO [(POS,[Synset])]
 relatedToIO synset = do
   let related = derivationLinks synset
   forM related $ \(SynsetLink {lpos, loff}) -> do
@@ -122,7 +116,7 @@ relatedToIO synset = do
 readSynset :: DB.POS -> PtrOffset -> IO [Synset]
 readSynset pos off = do
   DB.ensureInit
-  parseSynset $ withCString "" (read_synset (cenum pos) off)
+  parseSynset $ withCString "" (read_synset (cEnum pos) off)
 
 -- | Parse and deallocate a synset pointer
 parseSynset :: IO SynsetPtr -> IO [Synset]
@@ -141,33 +135,4 @@ findTheInfo :: String -> DB.POS -> DB.Search -> IO [Synset]
 findTheInfo s p opts = do
   let sense = (#const ALLSENSES)  -- Always return all senses
   DB.ensureInit
-  parseSynset $ withCString s $ \ cstr -> findtheinfo_ds cstr (cenum p) (cenum opts) sense
-
-
-data Foo = Foo | Bar
- deriving (Show, Enum)
- deriving Storable via (EnumCInt Foo)
-
-newtype EnumCInt a = EnumCInt a
-  deriving newtype (Enum)
-
-instance Enum a => Storable (EnumCInt a) where
-  sizeOf _ = sizeOf (0 :: CInt)
-  alignment _ = alignment (0 :: CInt)
-  peek x = fromCInt <$> peek @CInt (castPtr x)
-  poke ptr x = poke @CInt (castPtr ptr) (toCInt x)
-
-#{enum SearchOpts, SearchOpts
-  , derivation             = DERIVATION
-  }
-
-newtype POS = POS CInt
-  deriving (Show)
-
-#{enum POS, POS
- ,any = ALL_POS
- ,noun = NOUN
- ,verb = VERB
- ,adj = ADJ
- ,adv = ADV
-}
+  parseSynset $ withCString s $ \ cstr -> findtheinfo_ds cstr (cEnum p) (cEnum opts) sense
