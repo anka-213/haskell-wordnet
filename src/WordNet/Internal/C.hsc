@@ -6,7 +6,7 @@
 {-# LANGUAGE DerivingVia #-}
 #include "wn.h"
 
-module WordNet.C where
+module WordNet.Internal.C where
 -- import Data.List.NonEmpty (NonEmpty(..))
 import Control.Monad (forM)
 import Foreign.C.Types
