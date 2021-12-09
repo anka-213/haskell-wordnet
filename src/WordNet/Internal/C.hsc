@@ -103,21 +103,6 @@ data SynsetLink = SynsetLink
   }
   deriving (Show)
 
-derivationLinks :: Synset -> [SynsetLink]
-derivationLinks Synset{links, whichword} = filter (\SynsetLink{ltyp, lfrm} -> ltyp == DB.DERIVATION && lfrm == whichword) links
-
-relatedToIO :: Synset -> IO [(POS,[Synset])]
-relatedToIO synset = do
-  let related = derivationLinks synset
-  forM related $ \(SynsetLink {lpos, loff}) -> do
-    innerSynset <- readSynset lpos loff
-    return (lpos,innerSynset)
-
-readSynset :: DB.POS -> PtrOffset -> IO [Synset]
-readSynset pos off = do
-  DB.ensureInit
-  parseSynset $ withCString "" (read_synset (cEnum pos) off)
-
 -- | Parse and deallocate a synset pointer
 parseSynset :: IO SynsetPtr -> IO [Synset]
 parseSynset mkPtr = bracket mkPtr free_syns peekSynsetList 
@@ -130,7 +115,13 @@ peekSynsetList ptr = do
   rest <- peekSynsetList next
   return $ this : rest
 
+-- | Read a synset from a database given a part of speech and offset
+readSynset :: DB.POS -> PtrOffset -> IO [Synset]
+readSynset pos off = do
+  DB.ensureInit
+  parseSynset $ withCString "" (read_synset (cEnum pos) off)
 
+-- | Find the synsets for a word given a part of speech and search option
 findTheInfo :: String -> DB.POS -> DB.Search -> IO [Synset]
 findTheInfo s p opts = do
   let sense = (#const ALLSENSES)  -- Always return all senses
