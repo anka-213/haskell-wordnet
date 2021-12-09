@@ -61,7 +61,7 @@ data Search =
  | DERIVATION      -- 20    /* + */
  | CLASSIFICATION  -- 21    /* ; */
  | CLASS           -- 22    /* - */
-  deriving (Show, Enum)
+  deriving (Show, Eq, Enum)
 
 
 morph1 :: Text -> POS -> IO (NonEmpty Text)
