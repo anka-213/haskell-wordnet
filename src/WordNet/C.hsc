@@ -47,11 +47,14 @@ data Synset = Synset
   }
   deriving (Show)
 
-fromCInt :: CInt -> Int
-fromCInt = fromIntegral
+fromCInt :: Enum a => CInt -> a
+fromCInt = toEnum . fromIntegral
+
+toCInt :: Enum a => a -> CInt
+toCInt = fromIntegral . fromEnum
 
 peekEnumArray :: (Enum a) => Int -> Ptr CInt -> IO [a]
-peekEnumArray n = (fmap . fmap) (toEnum . fromCInt) . peekArray n
+peekEnumArray n = (fmap . fmap) fromCInt . peekArray n
 
 instance Storable Synset where
   sizeOf _ = #size Synset
@@ -66,11 +69,11 @@ instance Storable Synset where
     defn <- peekCString =<< (#peek Synset, defn) ptr
     whichword <- fromCInt <$> (#peek Synset, whichword) ptr
     -- nextform <- peekSynsetList =<< (#peek Synset, nextform) ptr
-    ppos <- (fmap . fmap) (toEnum . fromCInt) . peekArray ptrcount =<< (#peek Synset, ppos) ptr
+    ppos <- peekEnumArray ptrcount =<< (#peek Synset, ppos) ptr
     ptroff <- peekArray ptrcount =<< (#peek Synset, ptroff) ptr
-    pfrm <- (fmap . fmap) fromCInt . peekArray ptrcount =<< (#peek Synset, pfrm) ptr
-    pto <- (fmap . fmap) fromCInt . peekArray ptrcount =<< (#peek Synset, pto) ptr
-    ptrtyp <- (fmap . fmap) (toEnum . fromCInt) $ peekArray ptrcount =<< (#peek Synset, ptrtyp) ptr
+    pfrm <- peekEnumArray ptrcount =<< (#peek Synset, pfrm) ptr
+    pto <- peekEnumArray ptrcount =<< (#peek Synset, pto) ptr
+    ptrtyp <-  peekEnumArray ptrcount =<< (#peek Synset, ptrtyp) ptr
     let links = zipWith5 SynsetLink ptrtyp ptroff ppos pto pfrm
     return $ Synset
         { pos
@@ -105,7 +108,7 @@ relatedToIO synset = do
 
 readSynset :: DB.POS -> PtrOffset -> IO [Synset]
 readSynset pos (PtrOffset off) = do
-  ptr <- read_synset (fromIntegral $ fromEnum pos) off =<< newCString ""
+  ptr <- read_synset (toCInt pos) off =<< newCString ""
   synset <- peekSynsetList ptr
   free_syns ptr
   return synset
@@ -125,11 +128,11 @@ peekSynsetList ptr = do
 foo :: Ptr Synset -> Ptr CString
 foo = #ptr Synset, pos
 
-findTheInfo :: String -> POS -> SearchOpts -> IO [Synset]
+findTheInfo :: String -> DB.POS -> SearchOpts -> IO [Synset]
 findTheInfo s p opts = do
   DB.ensureInit
   cstr <- newCString s
-  ptr <- findtheinfo_ds cstr p opts 0 -- Always return all senses
+  ptr <- findtheinfo_ds cstr (POS $ toCInt p) opts 0 -- Always return all senses
   peekSynsetList ptr
 --   peekSynsetList ptr <* free_syns ptr
 --   if ptr == nullPtr
@@ -143,8 +146,8 @@ data Foo = Foo | Bar
 instance Storable Foo where
   sizeOf _ = sizeOf (0 :: CInt)
   alignment _ = alignment (0 :: CInt)
-  peek x = toEnum . fromIntegral <$> peek @CInt (castPtr x)
-  poke ptr x = poke @CInt (castPtr ptr) (fromIntegral $ fromEnum x)
+  peek x = fromCInt <$> peek @CInt (castPtr x)
+  poke ptr x = poke @CInt (castPtr ptr) (toCInt x)
 
 newtype EnumCInt a = EnumCInt a
   deriving newtype (Enum)
