@@ -4,6 +4,8 @@ module WordNet.Structured
   , Synset (..)
   , SynsetLink (..)
   , PtrOffset
+  , WordNumber(..)
+  , SenseNumber(..)
   , findTheInfo
   , readSynset
   ) where
@@ -38,7 +40,7 @@ printRelated :: Int -> Synset -> IO ()
 printRelated senseNr synset = do
   let related = derivationLinks synset
   putStrLn $ "Sense " ++ show senseNr
-  putStrLn $ "" ++ showSynset synset
+  putStrLn $ showSynset synset
   forM_ related $ \lnk@SynsetLink {lpos,lto} -> do
     [innerSynset] <- followLink lnk
     putStrLn $ "    RELATED TO->(" ++ show lpos ++ ") " ++ getWord innerSynset lto ++ "#" ++ show (getSense innerSynset lto)

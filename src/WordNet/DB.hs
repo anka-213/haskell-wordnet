@@ -22,6 +22,7 @@ initialise = do
     dict <- getDataFileName "dict"
     initialiseFrom dict
 
+-- | Initialise WordNet from a custom dictionary file.
 initialiseFrom :: FilePath -> IO Bool
 initialiseFrom path = do
     cpath <- newCString path

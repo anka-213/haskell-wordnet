@@ -50,6 +50,7 @@ newtype WordNumber = WordNumber Int
   deriving newtype (Show, Eq)
   deriving (Storable) via (EnumCInt Int)
 
+-- | The sense number for a specific word in a synset.
 newtype SenseNumber = SenseNumber Int
   deriving newtype (Show, Eq)
   deriving (Storable) via (EnumCInt Int)
