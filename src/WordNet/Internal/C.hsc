@@ -1,14 +1,10 @@
 {-# language CPP #-}
-{-# language TypeApplications #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DerivingVia #-}
 #include "wn.h"
 
 module WordNet.Internal.C where
--- import Data.List.NonEmpty (NonEmpty(..))
-import Control.Monad (forM)
 import Control.Exception (bracket)
 import Foreign.C.Types
 import Foreign.C.String (CString, peekCString, withCString)
@@ -20,6 +16,9 @@ import Foreign.Marshal.Array
 -- import Data.Dynamic (Typeable)
 import WordNet.DB as DB
 import Data.List (zipWith5)
+
+{-# ANN module "HLint: ignore Redundant bracket" #-}
+{-# ANN module "HLint: ignore Avoid lambda using `infix`" #-}
 
 newtype SearchOpts = SearchOpts CInt
 
@@ -46,21 +45,30 @@ type SynsetPtr = Ptr Synset
 newtype PtrOffset = PtrOffset CLong
   deriving newtype (Show, Storable)
 
+-- | One-indexed word number in a synset.
+newtype WordNumber = WordNumber Int
+  deriving newtype (Show, Eq)
+  deriving (Storable) via (EnumCInt Int)
+
+newtype SenseNumber = SenseNumber Int
+  deriving newtype (Show, Eq)
+  deriving (Storable) via (EnumCInt Int)
+
+allSenses :: SenseNumber
+allSenses = SenseNumber 0 -- #const ALLSENSES
+
 data Synset = Synset
   { pos :: String
   , sWords :: [String]
-  , wnsns :: [Int]
+  , wnsns :: [SenseNumber]
 --   , wcount :: Int
   , defn :: String
-  , whichword :: Int
+  , whichword :: WordNumber
 --   , nextform :: [Synset]
   , ptrcount :: Int
   , links :: [SynsetLink]
   }
   deriving (Show)
-
-peekEnumArray :: (Enum a) => Int -> Ptr CInt -> IO [a]
-peekEnumArray n = (fmap . fmap) fromCInt . peekArray n
 
 instance Storable Synset where
   sizeOf _ = #size Synset
@@ -69,20 +77,18 @@ instance Storable Synset where
     pos <- peekCString =<< (#peek Synset, pos) ptr
     wcount <- fromCInt <$> (#peek Synset, wcount) ptr
     sWords <- mapM peekCString =<< peekArray wcount =<< (#peek Synset, words) ptr
-    wnsns <- peekEnumArray wcount =<< (#peek Synset, wnsns) ptr
-    -- sWords <- peekArray wcount =<< (#peek Synset, words) ptr
-    -- sWords <- (#peek Synset, words) ptr
+    wnsns <- peekArray wcount =<< (#peek Synset, wnsns) ptr
     defn <- peekCString =<< (#peek Synset, defn) ptr
-    whichword <- fromCInt <$> (#peek Synset, whichword) ptr
+    whichword <- (#peek Synset, whichword) ptr
     -- nextform <- peekSynsetList =<< (#peek Synset, nextform) ptr
 
     -- Pointers/Links
     ptrcount <- fromCInt <$> (#peek Synset, ptrcount) ptr
-    ppos <- peekEnumArray ptrcount =<< (#peek Synset, ppos) ptr
-    ptroff <- peekArray ptrcount =<< (#peek Synset, ptroff) ptr
-    pfrm <- peekEnumArray ptrcount =<< (#peek Synset, pfrm) ptr
-    pto <- peekEnumArray ptrcount =<< (#peek Synset, pto) ptr
-    ptrtyp <-  peekEnumArray ptrcount =<< (#peek Synset, ptrtyp) ptr
+    ppos     <- peekArray ptrcount =<< (#peek Synset, ppos) ptr
+    ptroff   <- peekArray ptrcount =<< (#peek Synset, ptroff) ptr
+    pfrm     <- peekArray ptrcount =<< (#peek Synset, pfrm) ptr
+    pto      <- peekArray ptrcount =<< (#peek Synset, pto) ptr
+    ptrtyp   <- peekArray ptrcount =<< (#peek Synset, ptrtyp) ptr
     let links = zipWith5 SynsetLink ptrtyp ptroff ppos pto pfrm
     return $ Synset
         { pos
@@ -101,8 +107,8 @@ data SynsetLink = SynsetLink
   { ltyp :: PtrType -- ^ Type of link
   , loff :: PtrOffset -- ^ Offset in DB
   , lpos :: POS -- ^ Part of speech for target
-  , lto  :: Int -- ^ 'to' fields
-  , lfrm :: Int -- ^ 'from' fields
+  , lto  :: WordNumber -- ^ 'to' fields
+  , lfrm :: WordNumber -- ^ 'from' fields
   }
   deriving (Show)
 

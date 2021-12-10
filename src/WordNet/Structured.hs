@@ -1,15 +1,16 @@
 {-# LANGUAGE NamedFieldPuns #-}
-module WordNet.Structured 
+module WordNet.Structured
   (module WordNet.Structured
   , Synset (..)
   , SynsetLink (..)
   , PtrOffset
-  , findTheInfo 
+  , findTheInfo
   , readSynset
   ) where
 import WordNet.Internal.C
 import WordNet.DB
 import Control.Monad (forM, forM_, zipWithM_)
+import Data.List (intercalate)
 
 
 -- | All links to derivationally related words
@@ -34,19 +35,21 @@ printAllSenses :: [Synset] -> IO ()
 printAllSenses = zipWithM_ printRelated [1..]
 
 printRelated :: Int -> Synset -> IO ()
-printRelated senseNr synset@Synset{sWords, defn} = do
+printRelated senseNr synset = do
   let related = derivationLinks synset
   putStrLn $ "Sense " ++ show senseNr
-  putStrLn $ "" ++ show sWords ++ " -- " ++ defn
+  putStrLn $ "" ++ showSynset synset
   forM_ related $ \lnk@SynsetLink {lpos,lto} -> do
     [innerSynset] <- followLink lnk
-    let Synset{sWords, wnsns, defn} = innerSynset
-    putStrLn $ "    RELATED TO->(" ++ show lpos ++ ") " ++ getWord sWords lto ++ "#" ++ show (getSense wnsns lto)
-    putStrLn $ "        => " ++ show sWords ++ " -- " ++ defn
+    putStrLn $ "    RELATED TO->(" ++ show lpos ++ ") " ++ getWord innerSynset lto ++ "#" ++ show (getSense innerSynset lto)
+    putStrLn $ "        => " ++ showSynset innerSynset
   putStrLn ""
 
-getWord :: [String] -> Int -> String
-getWord wordList nr = wordList !! (nr - 1)
+  where showSynset Synset{sWords, defn} = intercalate ", " sWords ++ " -- " ++ defn
 
-getSense :: [Int] -> Int -> Int
-getSense senseNrs index = senseNrs !! (index - 1) 
+getWord :: Synset -> WordNumber  -> String
+getWord Synset{sWords} (WordNumber nr) = sWords !! (nr - 1)
+
+-- | Get the sense number of a word in a synset
+getSense :: Synset -> WordNumber  -> SenseNumber
+getSense Synset{wnsns} (WordNumber index) = wnsns !! (index - 1)

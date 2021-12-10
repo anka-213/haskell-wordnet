@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module WordNet.DB where
@@ -21,12 +20,12 @@ foreign import ccall "findtheinfo"     findtheinfo_ :: CString -> CInt -> CInt -
 initialise :: IO Bool
 initialise = do
     dict <- getDataFileName "dict"
-    initialiseFrom $ dict
+    initialiseFrom dict
 
 initialiseFrom :: FilePath -> IO Bool
 initialiseFrom path = do
     cpath <- newCString path
-    (toEnum . fromEnum) <$> (init_wordnet cpath)
+    toEnum . fromEnum <$> init_wordnet cpath
 
 ensureInit :: IO ()
 ensureInit = do
@@ -36,7 +35,9 @@ ensureInit = do
     else
         pure ()
 
-data POS = Any | Noun | Verb | Adj | Adv deriving (Show, Enum)
+-- | Part of speech
+data POS = Any | Noun | Verb | Adj | Adv
+ deriving stock (Show, Enum)
  deriving Storable via (EnumCInt POS)
 
 data Search =
@@ -69,7 +70,8 @@ data Search =
   deriving (Show, Eq, Enum)
  deriving Storable via (EnumCInt Search)
 
-
+-- | Used for deriving via to get a 'Storable' instance for any 'Enum' type.
+-- Marshalled as a 'CInt'
 newtype EnumCInt a = EnumCInt a
   deriving newtype (Enum)
 
@@ -104,7 +106,7 @@ morph' w i = do
         pure $ result : rest
 
 
-
+-- | Corresponds to the 'findtheinfo' function in the C library.
 findtheinfo :: Text -> POS -> Search -> Maybe Int -> IO Text
 findtheinfo w pos search whichSense = do
     ensureInit
@@ -115,6 +117,7 @@ findtheinfo w pos search whichSense = do
     else
         pack <$> peekCString result
 
+-- | Corresponds to running `wn -deriv` on the command line.
 getDerivations :: Text -> IO Text
 getDerivations w = findtheinfo w Verb DERIVATION Nothing
 
