@@ -1,5 +1,5 @@
 name:                wordnet
-version:             0.1.0.0
+version:             0.1.1.0
 github:              "DexterLB/underpass"
 license:             MIT
 author:              "dexterlb"
@@ -13,15 +13,7 @@ description:         General wordnet library
 
 dependencies:
 - base
-- megaparsec
 - text
-- parser-combinators
-- unordered-containers
-- containers
-- hashable
-- process
-- data-memocombinators
-- directory
 
 library:
   source-dirs:
