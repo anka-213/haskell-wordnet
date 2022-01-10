@@ -1,0 +1,86 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           wordnet
+version:        0.1.1.0
+description:    General wordnet library
+homepage:       https://github.com/DexterLB/underpass#readme
+bug-reports:    https://github.com/DexterLB/underpass/issues
+author:         dexterlb
+maintainer:     dexterlb@qtrp.org
+copyright:      2018 Angel Angelov
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+data-files:
+    dict/adj.exc
+    dict/adv.exc
+    dict/cntlist
+    dict/cntlist.rev
+    dict/cousin.exc
+    dict/data.adj
+    dict/data.adv
+    dict/data.noun
+    dict/data.verb
+    dict/index.adj
+    dict/index.adv
+    dict/index.noun
+    dict/index.sense
+    dict/index.verb
+    dict/log.grind.3.1
+    dict/noun.exc
+    dict/sentidx.vrb
+    dict/sents.vrb
+    dict/verb.exc
+    dict/verb.Framestext
+data-dir:       data
+
+source-repository head
+  type: git
+  location: https://github.com/DexterLB/underpass
+
+library
+  exposed-modules:
+      WordNet.DB
+      WordNet.Internal.C
+      WordNet.Structured
+  other-modules:
+      Paths_wordnet
+  hs-source-dirs:
+      src
+      lib
+  ghc-options: -Wall -Wno-orphans
+  include-dirs:
+      lib
+  c-sources:
+      lib/binsrch.c
+      lib/morph.c
+      lib/search.c
+      lib/wnglobal.c
+      lib/wnhelp.c
+      lib/wnrtl.c
+      lib/wnutil.c
+      lib/haskell_wrappers.c
+  build-depends:
+      base
+    , text
+  default-language: Haskell2010
+
+test-suite wordnet-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_wordnet
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wno-orphans -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base
+    , text
+    , wordnet
+  default-language: Haskell2010

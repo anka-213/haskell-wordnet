@@ -1,6 +1,5 @@
 .stack-work/
 .undodir/
 Session.vim
-*.cabal
 *_hsc_make.c
 .vscode/
