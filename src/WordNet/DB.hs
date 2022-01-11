@@ -38,7 +38,7 @@ ensureInit = do
 
 -- | Part of speech
 data POS = Any | Noun | Verb | Adj | Adv | Satellite
- deriving stock (Show, Enum)
+ deriving stock (Show, Enum, Eq)
  deriving Storable via (EnumCInt POS)
 
 data Search =
