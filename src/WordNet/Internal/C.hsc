@@ -59,12 +59,12 @@ allSenses :: SenseNumber
 allSenses = SenseNumber 0 -- #const ALLSENSES
 
 data Synset = Synset
-  { pos :: String
-  , sWords :: [String]
-  , wnsns :: [SenseNumber]
+  { pos :: String -- ^ Part of speech
+  , sWords :: [String] -- ^ Words in the synset
+  , wnsns :: [SenseNumber] -- ^ Sense numbers for each word
 --   , wcount :: Int
-  , defn :: String
-  , whichword :: WordNumber
+  , defn :: String -- ^ Dictionary definition
+  , whichword :: WordNumber -- ^ The word number for the word that was searched for. Index for sWords and wnsns.
 --   , nextform :: [Synset]
   , ptrcount :: Int
   , links :: [SynsetLink]
