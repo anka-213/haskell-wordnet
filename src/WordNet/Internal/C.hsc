@@ -59,7 +59,7 @@ allSenses :: SenseNumber
 allSenses = SenseNumber 0 -- #const ALLSENSES
 
 data Synset = Synset
-  { pos :: String -- ^ Part of speech
+  { pos :: POS -- ^ Part of speech
   , sWords :: [String] -- ^ Words in the synset
   , wnsns :: [SenseNumber] -- ^ Sense numbers for each word
 --   , wcount :: Int
@@ -71,11 +71,20 @@ data Synset = Synset
   }
   deriving (Show)
 
+-- | Convert POS string into a DB.POS
+posNameToPos :: String -> DB.POS
+posNameToPos "n" = DB.Noun
+posNameToPos "v" = DB.Verb
+posNameToPos "a" = DB.Adj
+posNameToPos "s" = DB.Satellite
+posNameToPos "r" = DB.Adv
+posNameToPos pos = error $ "Unknown POS: " ++ show pos
+
 instance Storable Synset where
   sizeOf _ = #size Synset
   alignment _ = #alignment Synset
   peek ptr = do
-    pos <- peekCString =<< (#peek Synset, pos) ptr
+    pos <- fmap posNameToPos . peekCString =<< (#peek Synset, pos) ptr
     wcount <- fromCInt <$> (#peek Synset, wcount) ptr
     sWords <- mapM peekCString =<< peekArray wcount =<< (#peek Synset, words) ptr
     wnsns <- peekArray wcount =<< (#peek Synset, wnsns) ptr
