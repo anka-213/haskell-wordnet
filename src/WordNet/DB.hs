@@ -37,7 +37,7 @@ ensureInit = do
         pure ()
 
 -- | Part of speech
-data POS = Any | Noun | Verb | Adj | Adv
+data POS = Any | Noun | Verb | Adj | Adv | Satellite
  deriving stock (Show, Enum)
  deriving Storable via (EnumCInt POS)
 
@@ -68,6 +68,34 @@ data Search =
  | DERIVATION      -- 20    /* + */
  | CLASSIFICATION  -- 21    /* ; */
  | CLASS           -- 22    /* - */
+ -- #define LASTTYPE        CLASS
+
+ | SYNS            -- (LASTTYPE + 1)
+ | FREQ            -- (LASTTYPE + 2)
+ | FRAMES          -- (LASTTYPE + 3)
+ | COORDS          -- (LASTTYPE + 4)
+ | RELATIVES       -- (LASTTYPE + 5)
+ | HMERONYM        -- (LASTTYPE + 6)
+ | HHOLONYM        -- (LASTTYPE + 7)
+ | WNGREP          -- (LASTTYPE + 8)
+ | OVERVIEW        -- (LASTTYPE + 9)
+ -- #define MAXSEARCH       OVERVIEW
+
+ -- #define CLASSIF_START   (MAXSEARCH + 1)
+ | CLASSIF_CATEGORY -- (CLASSIF_START)        /* ;c */
+ | CLASSIF_USAGE    -- (CLASSIF_START + 1)    /* ;u */
+ | CLASSIF_REGIONAL -- (CLASSIF_START + 2)    /* ;r */
+ -- #define CLASSIF_END     CLASSIF_REGIONAL
+
+ -- #define CLASS_START     (CLASSIF_END + 1)
+ | CLASS_CATEGORY   -- (CLASS_START)          /* -c */
+ | CLASS_USAGE      -- (CLASS_START + 1)      /* -u */
+ | CLASS_REGIONAL   -- (CLASS_START + 2)      /* -r */
+ -- #define CLASS_END       CLASS_REGIONAL
+
+ | INSTANCE         -- (CLASS_END + 1)        /* @i */
+ | INSTANCES        -- (CLASS_END + 2)        /* ~i */
+ -- #define MAXPTR          INSTANCES
   deriving (Show, Eq, Enum)
  deriving Storable via (EnumCInt Search)
 
