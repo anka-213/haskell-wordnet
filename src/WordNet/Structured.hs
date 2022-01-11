@@ -38,7 +38,7 @@ getDerivations' :: String -> IO [(Synset,[(SynsetLink,Synset)])]
 getDerivations' word = do
   synsets <- findTheInfo word Verb DERIVATION
   forM synsets $ \synset -> do
-    let derivLinks = filter ((==) DERIVATION . ltyp) $ derivationLinks synset
+    let derivLinks = filter ((==) DERIVATION . ltyp) $ links synset
     derivs <- forM derivLinks $ \lnk -> do
       [innerSynset] <- followLink lnk
       return (lnk,innerSynset)
